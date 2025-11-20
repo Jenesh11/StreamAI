@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Mic2, Maximize2, Heart, Music2, VolumeX } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Mic2, Maximize2, Heart, Music2, VolumeX, Youtube } from 'lucide-react';
 import { Song } from '../types';
-import { setVolume as spotifySetVolume } from '../services/spotifyService';
 
 interface PlayerProps {
   currentSong: Song | null;
@@ -11,10 +10,8 @@ interface PlayerProps {
   onPrevious: () => void;
   onToggleLyrics: () => void;
   showLyrics: boolean;
-  isSpotifyActive: boolean;
-  externalProgress?: number;
-  onSeek?: (val: number) => void;
-  spotifyToken?: string | null;
+  onSeek: (time: number) => void;
+  onSongEnd: () => void;
 }
 
 const Player: React.FC<PlayerProps> = ({ 
@@ -25,147 +22,122 @@ const Player: React.FC<PlayerProps> = ({
     onPrevious, 
     onToggleLyrics, 
     showLyrics,
-    isSpotifyActive,
-    externalProgress,
     onSeek,
-    spotifyToken
+    onSongEnd
 }) => {
   const [progress, setProgress] = useState(0);
-  const [volume, setVolume] = useState(0.5);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(50);
+  const [playerReady, setPlayerReady] = useState(false);
   
-  // Debounce for volume slider to avoid spamming Spotify API
-  const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playerRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const progressInterval = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // --- HTML5 Audio Logic ---
+  // Initialize YouTube API
   useEffect(() => {
-    if (isSpotifyActive) {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current = null;
-        }
-        return;
+    if (!window.YT) {
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+        
+        window.onYouTubeIframeAPIReady = () => {
+            createPlayer();
+        };
+    } else {
+        createPlayer();
     }
+  }, []);
 
-    if (currentSong && !currentSong.uri) {
-        if (!audioRef.current) {
-            audioRef.current = new Audio(currentSong.audioUrl);
-            audioRef.current.volume = volume;
-        } else {
-            if (audioRef.current.src !== currentSong.audioUrl) {
-                audioRef.current.src = currentSong.audioUrl || '';
-                audioRef.current.play().catch(e => console.warn("Autoplay prevented", e));
-            }
-        }
-    }
-  }, [currentSong, isSpotifyActive]);
-
-  useEffect(() => {
-      if (!isSpotifyActive && audioRef.current) {
-          if (isPlaying) audioRef.current.play().catch(e => console.error(e));
-          else audioRef.current.pause();
-      }
-  }, [isPlaying, isSpotifyActive]);
-
-  useEffect(() => {
-    if(!isSpotifyActive && audioRef.current) {
-        audioRef.current.volume = volume;
-    }
-  }, [volume, isSpotifyActive]);
-
-  const handleVolumeChange = (val: number) => {
-      setVolume(val);
+  const createPlayer = () => {
+      if (playerRef.current) return;
       
-      if (isSpotifyActive && spotifyToken) {
-          if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
-          volumeTimeoutRef.current = setTimeout(() => {
-              spotifySetVolume(spotifyToken, val);
-          }, 300);
+      playerRef.current = new window.YT.Player('youtube-player', {
+          height: '1', // 1px to avoid browser throttling (0px sometimes blocks autoplay)
+          width: '1',
+          playerVars: {
+              'playsinline': 1,
+              'controls': 0,
+              'disablekb': 1,
+              'fs': 0,
+          },
+          events: {
+              'onReady': onPlayerReady,
+              'onStateChange': onPlayerStateChange
+          }
+      });
+  };
+
+  const onPlayerReady = (event: any) => {
+      setPlayerReady(true);
+      event.target.setVolume(volume);
+  };
+
+  const onPlayerStateChange = (event: any) => {
+      // 0 = Ended
+      if (event.data === 0) {
+          onSongEnd();
       }
   };
 
-  // --- Progress Logic ---
+  // Sync Song
   useEffect(() => {
-    if (isSpotifyActive) {
-        if (currentSong && currentSong.durationSec) {
-            const pct = ((externalProgress || 0) / 1000 / currentSong.durationSec) * 100;
-            setProgress(Math.min(pct || 0, 100));
-        }
-        return;
-    }
+      if (currentSong?.youtubeId && playerReady && playerRef.current) {
+          // Load the new video
+          playerRef.current.loadVideoById(currentSong.youtubeId);
+          if (isPlaying) {
+              playerRef.current.playVideo();
+          }
+      }
+  }, [currentSong?.youtubeId, playerReady]);
 
-    const interval = setInterval(() => {
-        if (audioRef.current && !audioRef.current.paused) {
-            const pct = (audioRef.current.currentTime / audioRef.current.duration) * 100;
-            setProgress(pct || 0);
-        }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isSpotifyActive, externalProgress, currentSong]);
-
-  // --- Visualizer (Blue/Cyan Theme) ---
+  // Sync Play/Pause
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      if (playerReady && playerRef.current) {
+          if (isPlaying) {
+             if (playerRef.current.getPlayerState() !== 1) playerRef.current.playVideo();
+          } else {
+             playerRef.current.pauseVideo();
+          }
+      }
+  }, [isPlaying, playerReady]);
 
-    const barCount = 16;
-    const bars = new Array(barCount).fill(0);
-    const targets = new Array(barCount).fill(0);
+  // Sync Volume
+  useEffect(() => {
+      if (playerReady && playerRef.current) {
+          playerRef.current.setVolume(volume);
+      }
+  }, [volume, playerReady]);
 
-    const render = () => {
-      const width = canvas.width;
-      const height = canvas.height;
-      ctx.clearRect(0, 0, width, height);
+  // Progress Loop
+  useEffect(() => {
+      if (progressInterval.current) clearInterval(progressInterval.current);
       
-      const gradient = ctx.createLinearGradient(0, height, 0, 0);
-      gradient.addColorStop(0, '#22d3ee'); // Cyan-400
-      gradient.addColorStop(1, '#8b5cf6'); // Violet-500
+      progressInterval.current = setInterval(() => {
+          if (playerReady && playerRef.current && isPlaying) {
+              const cur = playerRef.current.getCurrentTime();
+              const dur = playerRef.current.getDuration();
+              if (dur > 0) {
+                  setCurrentTime(cur);
+                  setProgress((cur / dur) * 100);
+              }
+          }
+      }, 1000);
 
-      const barWidth = 3;
-      const gap = 2;
-      const totalWidth = (barCount * barWidth) + ((barCount - 1) * gap);
-      const startX = width - totalWidth; // Align right
-
-      bars.forEach((currentHeight, i) => {
-        if (isPlaying) {
-           if (Math.abs(targets[i] - currentHeight) < 1) {
-               targets[i] = Math.random() * height * 0.8 + (height * 0.1);
-           }
-        } else {
-           targets[i] = 2; 
-        }
-        const speed = isPlaying ? 0.15 : 0.1; 
-        bars[i] += (targets[i] - bars[i]) * speed;
-
-        const x = startX + i * (barWidth + gap);
-        const y = height - bars[i];
-        
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.roundRect(x, y, barWidth, bars[i], 2);
-        ctx.fill();
-      });
-      animationRef.current = requestAnimationFrame(render);
-    };
-    render();
-    return () => {
-        if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [isPlaying]);
+      return () => {
+          if (progressInterval.current) clearInterval(progressInterval.current);
+      }
+  }, [playerReady, isPlaying]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = Number(e.target.value);
       setProgress(val);
-      if (isSpotifyActive && onSeek && currentSong) {
-          const ms = (val / 100) * (currentSong.durationSec * 1000);
-          onSeek(ms);
-      } else if (audioRef.current) {
-          const time = (val / 100) * audioRef.current.duration;
-          audioRef.current.currentTime = time;
+      if (playerReady && playerRef.current) {
+          const dur = playerRef.current.getDuration();
+          const newTime = (val / 100) * dur;
+          playerRef.current.seekTo(newTime, true);
+          setCurrentTime(newTime);
       }
   };
 
@@ -176,6 +148,8 @@ const Player: React.FC<PlayerProps> = ({
                <Music2 className="w-5 h-5 animate-bounce" />
                <span className="text-sm font-medium">Select a track to start listening</span>
            </div>
+           {/* Hidden Player Container */}
+           <div id="youtube-player" className="hidden"></div>
         </div>
       );
   }
@@ -183,6 +157,11 @@ const Player: React.FC<PlayerProps> = ({
   return (
     <div className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-72 md:right-6 h-[88px] bg-[#0a0a0a]/90 backdrop-blur-2xl border-t md:border border-white/10 md:rounded-[2rem] px-4 md:px-6 flex items-center justify-between z-50 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] transition-all duration-500">
       
+      {/* Hidden Player Container */}
+      <div className="absolute opacity-0 pointer-events-none w-1 h-1 overflow-hidden">
+         <div id="youtube-player"></div>
+      </div>
+
       {/* Left: Song Info */}
       <div className="flex items-center gap-4 w-[30%] min-w-[140px]">
         <div className="relative group hidden md:block shrink-0">
@@ -191,8 +170,8 @@ const Player: React.FC<PlayerProps> = ({
                 alt={currentSong.title} 
                 className="w-14 h-14 rounded-2xl object-cover shadow-lg shadow-black/40"
             />
-            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-black flex items-center justify-center ${isSpotifyActive ? 'bg-green-500' : 'bg-cyan-500'}`}>
-                <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-black bg-red-600 flex items-center justify-center">
+                <Youtube className="w-3 h-3 text-white fill-white" />
             </div>
         </div>
         
@@ -234,7 +213,7 @@ const Player: React.FC<PlayerProps> = ({
         </div>
         
         <div className="w-full flex items-center gap-3 text-xs text-white/40 font-medium">
-             <span className="min-w-[35px] text-right">{isSpotifyActive ? formatTime(externalProgress! / 1000) : (audioRef.current ? formatTime(audioRef.current.currentTime) : "0:00")}</span>
+             <span className="min-w-[35px] text-right">{formatTime(currentTime)}</span>
              <div className="relative flex-1 h-1.5 group rounded-full bg-white/10 overflow-hidden cursor-pointer">
                  <div 
                     className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-100 ease-linear" 
@@ -256,8 +235,6 @@ const Player: React.FC<PlayerProps> = ({
 
       {/* Right: Volume & Extra */}
       <div className="flex items-center justify-end gap-4 w-[30%] hidden md:flex">
-        <canvas ref={canvasRef} width={80} height={24} className="opacity-60 mr-2 hidden xl:block" />
-        
         <div 
             className={`p-2 rounded-full transition-all cursor-pointer ${showLyrics ? 'bg-white/10 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
             onClick={onToggleLyrics}
@@ -274,15 +251,15 @@ const Player: React.FC<PlayerProps> = ({
             <div className="relative flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
                 <div 
                    className="absolute inset-y-0 left-0 bg-white/60 group-hover:bg-cyan-400 rounded-full" 
-                   style={{ width: `${volume * 100}%` }}
+                   style={{ width: `${volume}%` }}
                 ></div>
                 <input 
                     type="range" 
                     min="0" 
-                    max="1" 
-                    step="0.01"
+                    max="100" 
+                    step="1"
                     value={volume}
-                    onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                    onChange={(e) => setVolume(Number(e.target.value))}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer range-slider"
                 />
             </div>

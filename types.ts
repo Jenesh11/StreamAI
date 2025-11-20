@@ -8,7 +8,8 @@ export interface Song {
   durationSec: number;
   audioUrl?: string; // For fallback/preview
   lyrics?: string;
-  uri?: string; // Spotify URI
+  youtubeId?: string; // New: YouTube Video ID
+  uri?: string;
   spotifyId?: string;
 }
 
@@ -35,10 +36,10 @@ export interface PlaybackState {
   queue: Song[];
 }
 
-// Spotify SDK Type Definitions
+// YouTube IFrame API Types
 declare global {
   interface Window {
-    onSpotifyWebPlaybackSDKReady: () => void;
-    Spotify: any;
+    onYouTubeIframeAPIReady: () => void;
+    YT: any;
   }
 }

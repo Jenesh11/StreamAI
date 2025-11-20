@@ -71,6 +71,21 @@ const fetchSpotify = async (token: string, endpoint: string, options: RequestIni
     return res;
 }
 
+export const getUserProfile = async (token: string): Promise<{ product: string, id: string } | null> => {
+    try {
+        const response = await fetchSpotify(token, 'me');
+        if (!response || !response.ok) return null;
+        const data = await response.json();
+        return {
+            product: data.product, // 'premium', 'free', or 'open'
+            id: data.id
+        };
+    } catch (e) {
+        console.error("Error fetching profile:", e);
+        return null;
+    }
+};
+
 export const searchSpotify = async (token: string, query: string): Promise<Song[]> => {
   if (!query) return [];
   
@@ -108,7 +123,7 @@ export const getUserPlaylists = async (token: string): Promise<Playlist[]> => {
 
 export const getUserTopTracks = async (token: string): Promise<Song[]> => {
     try {
-        const response = await fetchSpotify(token, 'me/top/tracks?limit=10&time_range=short_term');
+        const response = await fetchSpotify(token, 'me/top/tracks?limit=20&time_range=short_term');
         if (!response || !response.ok) return [];
         const data = await response.json();
         return data.items.map((track: any) => mapSpotifyTrackToSong(track));
@@ -132,47 +147,45 @@ export const getPlaylistTracks = async (token: string, playlistId: string): Prom
     }
 };
 
-export const playSpotifyTrack = async (token: string, deviceId: string, uri: string): Promise<boolean> => {
+export const playSpotifyTrack = async (token: string, deviceId: string, uri: string): Promise<'SUCCESS' | 'ERROR'> => {
     try {
-        // ATTEMPT 1: Direct Play
-        // Try to play directly on the device. This is fastest if the device is active.
+        // STRATEGY: Try Direct Play first (fastest). If fail, Transfer -> Retry.
+
+        // 1. Try Direct Play
         let res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
             method: "PUT",
             body: JSON.stringify({ uris: [uri] }),
         });
 
-        if (res && res.ok) {
-            return true;
-        }
+        if (res && res.ok) return 'SUCCESS';
 
-        // If Direct Play fails (likely 404 Not Found due to inactivity), we fall back to Transfer + Play.
-        console.warn("Direct play failed (Device sleeping?). Attempting wakeup transfer...");
-
-        // ATTEMPT 2: Wake Up (Transfer)
+        // 2. Direct Play Failed (Likely Device Sleeping/Inactive). Attempt Transfer.
+        console.warn("Direct play failed. Transferring playback...");
+        
         await fetchSpotify(token, "me/player", {
             method: "PUT",
             body: JSON.stringify({ device_ids: [deviceId], play: false }),
         });
 
-        // Wait for the SDK to process the transfer and emit "ready" internally
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait a moment for the transfer to register
+        await new Promise(resolve => setTimeout(resolve, 600));
 
-        // ATTEMPT 3: Retry Play
+        // 3. Retry Play
         res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
             method: "PUT",
             body: JSON.stringify({ uris: [uri] }),
         });
 
-        if (res && res.ok) {
-            return true;
-        } else {
-            const errText = await res?.text();
-            console.error("Final play attempt failed:", errText);
-            return false;
-        }
+        if (res && res.ok) return 'SUCCESS';
+
+        // 4. Log specific error
+        const errJson = await res?.json();
+        console.error("Spotify Playback Error:", errJson);
+        return 'ERROR';
+
     } catch (e) {
         console.error("Error playing track:", e);
-        return false;
+        return 'ERROR';
     }
 };
 
@@ -209,7 +222,9 @@ const mapSpotifyTrackToSong = (track: any): Song => {
         duration: formatDuration(track.duration_ms),
         durationSec: Math.floor(track.duration_ms / 1000),
         uri: track.uri,
-        spotifyId: track.id
+        spotifyId: track.id,
+        // Important: Map preview_url to audioUrl for fallback
+        audioUrl: track.preview_url || null 
     };
 }
 
