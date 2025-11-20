@@ -122,11 +122,13 @@ const App: React.FC = () => {
             });
 
             player.addListener('ready', ({ device_id }: any) => {
+                console.log("Spotify Device Ready:", device_id);
                 setSpotifyDeviceId(device_id);
                 setIsSpotifyReady(true);
             });
 
             player.addListener('not_ready', ({ device_id }: any) => {
+                console.warn("Spotify Device Not Ready:", device_id);
                 setIsSpotifyReady(false);
             });
 
@@ -227,8 +229,12 @@ const App: React.FC = () => {
   const playSong = useCallback(async (song: Song) => {
     setCurrentSong(song);
     if (spotifyToken && spotifyDeviceId && song.uri) {
-        await playSpotifyTrack(spotifyToken, spotifyDeviceId, song.uri);
-        setIsPlaying(true);
+        try {
+            await playSpotifyTrack(spotifyToken, spotifyDeviceId, song.uri);
+            setIsPlaying(true);
+        } catch (e) {
+            console.error("Playback failed:", e);
+        }
     } else {
         setIsPlaying(true);
     }
@@ -289,7 +295,7 @@ const App: React.FC = () => {
 
   if (isPopupHandler) {
       return (
-          <div className="h-screen w-screen bg-black flex items-center justify-center text-white">
+          <div className="h-screen w-full bg-black flex items-center justify-center text-white">
               <div className="flex flex-col items-center gap-4">
                   <Sparkles className="w-8 h-8 animate-spin text-cyan-500" />
                   <span className="text-xl font-bold">Syncing with the cloud...</span>
@@ -325,7 +331,7 @@ const App: React.FC = () => {
             </div>
 
             {searchResults.length > 0 ? (
-                <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
                     <h3 className="text-xl font-bold text-white/90 mb-4">Top Results</h3>
                     <SongList songs={searchResults} onPlaySong={playSong} showHeader={false} />
                 </div>
@@ -390,7 +396,7 @@ const App: React.FC = () => {
     if (currentView === View.LIBRARY) {
         const displayTracks = spotifyToken && topTracks.length > 0 ? topTracks : queue;
         return (
-            <div className="p-8">
+            <div className="p-8 pb-32">
                 <h2 className="text-3xl font-bold text-white mb-8">Your Collection</h2>
                 <div className="flex gap-3 mb-8">
                      {['Playlists', 'Albums', 'Artists'].map(filter => (
@@ -451,16 +457,16 @@ const App: React.FC = () => {
             )}
 
             {/* Recent Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-                {(spotifyToken && topTracks.length > 0 ? topTracks.slice(0, 6) : queue.slice(0, 6)).map((song) => (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
+                {(spotifyToken && topTracks.length > 0 ? topTracks.slice(0, 8) : queue.slice(0, 6)).map((song) => (
                     <div 
                         key={song.id} 
-                        className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all rounded-xl overflow-hidden flex items-center cursor-pointer group pr-4 h-20 backdrop-blur-sm"
+                        className="bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 transition-all rounded-xl overflow-hidden flex items-center cursor-pointer group pr-4 h-16 backdrop-blur-sm"
                         onClick={() => playSong(song)}
                     >
-                        <img src={song.coverUrl} className="w-20 h-20 object-cover" alt={song.title} />
+                        <img src={song.coverUrl} className="w-16 h-16 object-cover" alt={song.title} />
                         <div className="flex items-center justify-between flex-1 ml-4 overflow-hidden">
-                             <span className="font-bold text-white truncate text-sm">{song.title}</span>
+                             <span className="font-bold text-white truncate text-xs">{song.title}</span>
                              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100">
                                 <Play className="w-4 h-4 text-black fill-black ml-0.5" />
                             </div>
@@ -478,18 +484,19 @@ const App: React.FC = () => {
                         View All <ChevronRight className="w-3 h-3" />
                     </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                    {(spotifyToken && topTracks.length > 0 ? topTracks : SAMPLE_SONGS).slice(0, 10).map((song, idx) => (
-                        <div key={idx} className="bg-[#181818]/40 hover:bg-[#181818]/80 border border-white/5 p-4 rounded-2xl transition-all cursor-pointer group hover:-translate-y-2 duration-300">
-                            <div className="relative mb-4 w-full aspect-square rounded-xl overflow-hidden shadow-lg">
+                {/* Updated Grid: More columns (compact size), smaller padding, slightly smaller text */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
+                    {(spotifyToken && topTracks.length > 0 ? topTracks : SAMPLE_SONGS).slice(0, 20).map((song, idx) => (
+                        <div key={idx} className="bg-[#181818]/40 hover:bg-[#181818]/80 border border-white/5 p-2.5 rounded-lg transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <div className="relative mb-2.5 w-full aspect-square rounded-md overflow-hidden shadow-lg">
                                 <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                                <div className="absolute bottom-3 right-3 bg-cyan-500 rounded-full w-10 h-10 flex items-center justify-center shadow-lg shadow-cyan-500/40 opacity-0 group-hover:opacity-100 hover:scale-110 transition-all duration-300 translate-y-4 group-hover:translate-y-0" onClick={() => playSong(song)}>
-                                    <Play className="w-5 h-5 text-white fill-white ml-1" />
+                                <div className="absolute bottom-1.5 right-1.5 bg-cyan-500 rounded-full w-7 h-7 flex items-center justify-center shadow-lg shadow-cyan-500/40 opacity-0 group-hover:opacity-100 hover:scale-110 transition-all duration-300 translate-y-2 group-hover:translate-y-0" onClick={() => playSong(song)}>
+                                    <Play className="w-3.5 h-3.5 text-white fill-white ml-0.5" />
                                 </div>
                             </div>
-                            <h3 className="font-bold text-white truncate mb-1 text-sm">{song.title}</h3>
-                            <p className="text-xs text-white/50 line-clamp-1 font-medium">{song.artist}</p>
+                            <h3 className="font-bold text-white truncate mb-0.5 text-[11px]">{song.title}</h3>
+                            <p className="text-[9px] text-white/50 line-clamp-1 font-medium">{song.artist}</p>
                         </div>
                     ))}
                 </div>
@@ -500,7 +507,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-transparent text-white font-sans selection:bg-cyan-500/30">
+    <div className="h-screen w-full flex flex-col bg-transparent text-white font-sans selection:bg-cyan-500/30">
       <div className="flex-1 flex overflow-hidden relative">
         <Sidebar 
             currentView={currentView} 

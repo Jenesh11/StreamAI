@@ -90,8 +90,6 @@ const Player: React.FC<PlayerProps> = ({
   useEffect(() => {
     if (isSpotifyActive) {
         if (currentSong && currentSong.durationSec) {
-            // Prevent jitter when dragging: only update if NOT dragging (but we don't have drag state here easily, simplistic approach)
-            // Ideally we add an isDragging state. For now, we trust externalProgress.
             const pct = ((externalProgress || 0) / 1000 / currentSong.durationSec) * 100;
             setProgress(Math.min(pct || 0, 100));
         }
@@ -114,7 +112,7 @@ const Player: React.FC<PlayerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const barCount = 16; // Increased bar count
+    const barCount = 16;
     const bars = new Array(barCount).fill(0);
     const targets = new Array(barCount).fill(0);
 
@@ -173,7 +171,7 @@ const Player: React.FC<PlayerProps> = ({
 
   if (!currentSong) {
       return (
-        <div className="fixed bottom-6 left-6 right-6 h-[80px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl flex items-center justify-center z-50 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
+        <div className="fixed bottom-6 md:left-[19rem] left-6 right-6 h-[80px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl flex items-center justify-center z-50 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 transition-all">
            <div className="flex items-center gap-3 text-white/50">
                <Music2 className="w-5 h-5 animate-bounce" />
                <span className="text-sm font-medium">Select a track to start listening</span>
@@ -183,7 +181,7 @@ const Player: React.FC<PlayerProps> = ({
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-6 h-[88px] bg-[#0a0a0a]/90 backdrop-blur-2xl border-t md:border border-white/10 md:rounded-[2rem] px-4 md:px-6 flex items-center justify-between z-50 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] transition-all duration-500">
+    <div className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-[19rem] md:right-6 h-[88px] bg-[#0a0a0a]/90 backdrop-blur-2xl border-t md:border border-white/10 md:rounded-[2rem] px-4 md:px-6 flex items-center justify-between z-50 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] transition-all duration-500">
       
       {/* Left: Song Info */}
       <div className="flex items-center gap-4 w-[30%] min-w-[140px]">

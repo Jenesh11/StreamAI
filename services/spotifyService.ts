@@ -1,7 +1,6 @@
 import { Song, Playlist } from "../types";
 
 // Try to retrieve from various environment variable conventions
-// Note: In Vercel/React, variables usually need NEXT_PUBLIC_ or REACT_APP_ prefix to be exposed to the browser.
 const ENV_CLIENT_ID = 
   process.env.SPOTIFY_CLIENT_ID || 
   process.env.REACT_APP_SPOTIFY_CLIENT_ID || 
@@ -135,10 +134,27 @@ export const getPlaylistTracks = async (token: string, playlistId: string): Prom
 
 export const playSpotifyTrack = async (token: string, deviceId: string, uri: string) => {
     try {
-        await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
+        console.log(`SpotifyService: Playing ${uri} on device ${deviceId}`);
+        const res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
             method: "PUT",
             body: JSON.stringify({ uris: [uri] }),
         });
+        
+        // If failed, try transferring playback first then playing
+        if (res && !res.ok) {
+            console.warn("Direct play failed, attempting transfer...", await res.clone().json());
+            await fetchSpotify(token, `me/player`, {
+                method: "PUT",
+                body: JSON.stringify({ device_ids: [deviceId], play: false })
+            });
+            // Retry play after short delay
+            setTimeout(async () => {
+                 await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
+                    method: "PUT",
+                    body: JSON.stringify({ uris: [uri] }),
+                });
+            }, 500);
+        }
     } catch (e) {
         console.error("Error playing track:", e);
     }
