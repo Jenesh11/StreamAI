@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, ChevronLeft, ChevronRight, User, Bell, Settings, Sparkles, Play, Zap, LogIn, X, Loader2, LayoutGrid, List } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, User, Bell, Settings, Sparkles, Play, Zap, LogIn, X, Loader2, LayoutGrid, List, AlertCircle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Player from './components/Player';
 import SongList from './components/SongList';
@@ -18,7 +18,9 @@ import {
     seek,
     getUserPlaylists,
     getUserTopTracks,
-    getPlaylistTracks
+    getPlaylistTracks,
+    getClientId,
+    setClientId
 } from './services/spotifyService';
 
 const App: React.FC = () => {
@@ -44,6 +46,10 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [spotifyProgress, setSpotifyProgress] = useState(0);
   
+  // Settings State
+  const [clientIdInput, setClientIdInput] = useState('');
+  const [hasClientId, setHasClientId] = useState(!!getClientId());
+
   // Spotify Data
   const [spotifyPlaylists, setSpotifyPlaylists] = useState<Playlist[]>([]);
   const [topTracks, setTopTracks] = useState<Song[]>([]);
@@ -62,6 +68,14 @@ const App: React.FC = () => {
         setSpotifyToken(token);
         window.location.hash = ""; 
     }
+    
+    // Initialize Client ID input state
+    const existingId = getClientId();
+    if (existingId) {
+        setClientIdInput(existingId);
+        setHasClientId(true);
+    }
+
     getAiGreeting().then(setGreeting);
   }, []);
 
@@ -152,7 +166,10 @@ const App: React.FC = () => {
 
   const handleConnectSpotify = () => {
       const loginUrl = getLoginUrl();
-      if (!loginUrl) return;
+      if (!loginUrl) {
+          setShowSettings(true);
+          return;
+      }
       const width = 450;
       const height = 730;
       const left = (window.screen.width / 2) - (width / 2);
@@ -166,6 +183,14 @@ const App: React.FC = () => {
       setSpotifyDeviceId(null);
       setSpotifyPlaylists([]);
       setTopTracks([]);
+  };
+
+  const handleSaveSettings = () => {
+      if (clientIdInput.trim()) {
+          setClientId(clientIdInput.trim());
+          setHasClientId(true);
+      }
+      setShowSettings(false);
   };
 
   // Lyrics Fetching Logic
@@ -413,6 +438,18 @@ const App: React.FC = () => {
                 </div>
             </div>
 
+            {!hasClientId && (
+                <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                        <span className="text-amber-200 text-sm font-medium">Setup Required: Add your Spotify Client ID to start listening.</span>
+                    </div>
+                    <button onClick={() => setShowSettings(true)} className="text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-3 py-2 rounded-lg transition">
+                        Open Settings
+                    </button>
+                </div>
+            )}
+
             {/* Recent Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
                 {(spotifyToken && topTracks.length > 0 ? topTracks.slice(0, 6) : queue.slice(0, 6)).map((song) => (
@@ -534,17 +571,31 @@ const App: React.FC = () => {
                                     {window.location.origin}
                                 </code>
                             </div>
+                            
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                <p className="text-xs text-white/50 mb-2 font-bold uppercase tracking-wide">Spotify Client ID</p>
+                                <input 
+                                    type="text" 
+                                    value={clientIdInput}
+                                    onChange={(e) => setClientIdInput(e.target.value)}
+                                    placeholder="Paste your Client ID here"
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                                />
+                                <p className="text-[10px] text-white/40 mt-2">
+                                    Required if environment variables are not detecting it.
+                                </p>
+                            </div>
+
                             <div className="text-sm text-white/60 leading-relaxed">
-                                 StreamAI uses your environment variables for secure authentication. 
-                                 <span className="block mt-2 text-white/40 text-xs">Client ID: ...228227</span>
+                                 StreamAI uses your local storage or environment variables for secure authentication. 
                             </div>
                         </div>
                         <div className="flex justify-end">
                             <button 
-                                onClick={() => setShowSettings(false)} 
+                                onClick={handleSaveSettings} 
                                 className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 hover:scale-105 transition-all"
                             >
-                                Done
+                                Save & Close
                             </button>
                         </div>
                     </div>

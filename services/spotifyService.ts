@@ -1,10 +1,23 @@
 import { Song, Playlist } from "../types";
 
-// Load Client ID from environment variables
-const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID; 
+// Try to retrieve from various environment variable conventions
+// Note: In Vercel/React, variables usually need NEXT_PUBLIC_ or REACT_APP_ prefix to be exposed to the browser.
+const ENV_CLIENT_ID = 
+  process.env.SPOTIFY_CLIENT_ID || 
+  process.env.REACT_APP_SPOTIFY_CLIENT_ID || 
+  process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
+
+let dynamicClientId = ENV_CLIENT_ID || "";
+
+// Initialize from localStorage if available and not found in env
+if (!dynamicClientId && typeof window !== 'undefined') {
+    const stored = localStorage.getItem('spotify_client_id');
+    if (stored) dynamicClientId = stored;
+}
+
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
 // Ensure no trailing slash for consistency
-export const REDIRECT_URI = window.location.origin.replace(/\/$/, "");
+export const REDIRECT_URI = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, "") : "";
 
 const SCOPES = [
   "streaming",
@@ -19,13 +32,20 @@ const SCOPES = [
   "playlist-read-collaborative"
 ];
 
+export const setClientId = (id: string) => {
+    dynamicClientId = id;
+    if (typeof window !== 'undefined') {
+        localStorage.setItem('spotify_client_id', id);
+    }
+};
+
+export const getClientId = () => dynamicClientId;
+
 export const getLoginUrl = () => {
-  if (!CLIENT_ID) {
-    console.error("Spotify Client ID is missing from environment variables.");
-    alert("Configuration Error: Spotify Client ID is missing. Please set SPOTIFY_CLIENT_ID in your environment.");
+  if (!dynamicClientId) {
     return "";
   }
-  return `${AUTH_ENDPOINT}?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES.join(" "))}&response_type=token&show_dialog=true`;
+  return `${AUTH_ENDPOINT}?client_id=${dynamicClientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES.join(" "))}&response_type=token&show_dialog=true`;
 };
 
 export const getTokenFromUrl = (): string | null => {
