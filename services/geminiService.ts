@@ -1,11 +1,26 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Song } from "../types";
 
-// Initialize Gemini
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization allows the app to load even if the API key is missing (common in preview/deploy without env vars)
+let aiClient: GoogleGenAI | null = null;
+
+const getAiClient = () => {
+  if (!aiClient) {
+    // process.env.API_KEY is required.
+    // If missing, we throw here instead of at module level to avoid crashing the whole app on load.
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        console.warn("Gemini API Key is missing from environment variables.");
+        throw new Error("Gemini API Key is not set.");
+    }
+    aiClient = new GoogleGenAI({ apiKey });
+  }
+  return aiClient;
+};
 
 export const searchMusicWithGemini = async (query: string): Promise<Song[]> => {
   try {
+    const ai = getAiClient();
     const model = 'gemini-2.5-flash';
     
     const response = await ai.models.generateContent({
@@ -47,9 +62,7 @@ export const searchMusicWithGemini = async (query: string): Promise<Song[]> => {
         const formattedDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
         // Generate specific album art URL using Pollinations
-        // We add specific keywords to ensure good style
         const prompt = encodeURIComponent(`${s.coverDescription} ${s.album} album cover, high quality, 4k`);
-        // Using a random seed based on song info to keep it consistent for the same result but different for others
         const coverUrl = `https://image.pollinations.ai/prompt/${prompt}?width=512&height=512&nologo=true`;
 
         return {
@@ -60,7 +73,6 @@ export const searchMusicWithGemini = async (query: string): Promise<Song[]> => {
           coverUrl: coverUrl,
           duration: formattedDuration,
           durationSec: durationSec,
-          // Fallback audio for demo
           audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' 
         };
       });
@@ -74,6 +86,7 @@ export const searchMusicWithGemini = async (query: string): Promise<Song[]> => {
 
 export const getSongLyrics = async (title: string, artist: string): Promise<string> => {
   try {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: `Return the lyrics for the song "${title}" by "${artist}".
@@ -86,12 +99,13 @@ export const getSongLyrics = async (title: string, artist: string): Promise<stri
     return response.text || "Lyrics not available.";
   } catch (e) {
     console.error("Gemini Lyrics Error:", e);
-    return "Could not load lyrics. Please try again.";
+    return "Could not load lyrics (API Key missing or error).";
   }
 };
 
 export const getAiGreeting = async (): Promise<string> => {
   try {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: "Give me a short, cool, 3-word greeting for a music app user based on the current time of day. No quotes.",

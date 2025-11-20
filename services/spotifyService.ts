@@ -1,7 +1,7 @@
 import { Song, Playlist } from "../types";
 
-// Use the provided Client ID directly
-const CLIENT_ID = "60b139b5064444f9810e1a83c8228227"; 
+// Load Client ID from environment variables
+const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID; 
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
 // Ensure no trailing slash for consistency
 export const REDIRECT_URI = window.location.origin.replace(/\/$/, "");
@@ -21,8 +21,8 @@ const SCOPES = [
 
 export const getLoginUrl = () => {
   if (!CLIENT_ID) {
-    console.error("Spotify Client ID is missing.");
-    alert("Configuration Error: Spotify Client ID is missing.");
+    console.error("Spotify Client ID is missing from environment variables.");
+    alert("Configuration Error: Spotify Client ID is missing. Please set SPOTIFY_CLIENT_ID in your environment.");
     return "";
   }
   return `${AUTH_ENDPOINT}?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES.join(" "))}&response_type=token&show_dialog=true`;
