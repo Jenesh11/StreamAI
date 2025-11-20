@@ -134,43 +134,44 @@ export const getPlaylistTracks = async (token: string, playlistId: string): Prom
 
 export const playSpotifyTrack = async (token: string, deviceId: string, uri: string): Promise<boolean> => {
     try {
-        console.log(`SpotifyService: Attempting to play ${uri} on device ${deviceId}`);
+        console.log(`SpotifyService: Preparing to play ${uri} on device ${deviceId}`);
         
-        // 1. Try to play directly
+        // CRITICAL: Always transfer playback to the target device first.
+        // This wakes up the Web Playback SDK if it has gone dormant or lost focus.
+        // We do NOT use play:true here, as we want to send a specific URI in the next step.
+        await fetchSpotify(token, "me/player", {
+            method: "PUT",
+            body: JSON.stringify({ device_ids: [deviceId], play: false }),
+        });
+
+        // Small delay to allow the Spotify backend to register the device switch.
+        // This significantly reduces "Player command failed: No active device found" errors.
+        await new Promise(resolve => setTimeout(resolve, 400));
+
+        // Now send the Play command with the specific track URI
         let res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
             method: "PUT",
             body: JSON.stringify({ uris: [uri] }),
         });
-        
-        // 2. If direct play failed (usually because device isn't active), transfer playback first
-        if (res && !res.ok) {
-            console.warn("Direct play failed. Transferring playback...", res.status);
-            
-            // Transfer playback to this device (this wakes it up)
-            const transferRes = await fetchSpotify(token, `me/player`, {
-                method: "PUT",
-                body: JSON.stringify({ device_ids: [deviceId] }) // Don't set play:true here, just transfer context
-            });
 
-            if (!transferRes || !transferRes.ok) {
-                console.error("Transfer failed", transferRes?.status);
-                return false;
-            }
-
-            // Wait a moment for Spotify backend to register the device switch
-            await new Promise(resolve => setTimeout(resolve, 300));
-
-            // 3. Retry play command
-            res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
-                method: "PUT",
-                body: JSON.stringify({ uris: [uri] }),
-            });
+        if (res && res.ok) {
+            return true;
         }
+
+        // If it failed (e.g., network glitch or race condition), try one more time after a longer delay
+        console.warn("Initial play attempt failed. Retrying...");
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+        res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
+            method: "PUT",
+            body: JSON.stringify({ uris: [uri] }),
+        });
 
         if (res && res.ok) {
             return true;
         } else {
-            console.error("Final play attempt failed", await res?.text());
+            const errText = await res?.text();
+            console.error("Final play attempt failed:", errText);
             return false;
         }
     } catch (e) {

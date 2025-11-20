@@ -185,7 +185,7 @@ const Player: React.FC<PlayerProps> = ({
       
       {/* Left: Song Info */}
       <div className="flex items-center gap-4 w-[30%] min-w-[140px]">
-        <div className="relative group hidden md:block">
+        <div className="relative group hidden md:block shrink-0">
              <img 
                 src={currentSong.coverUrl} 
                 alt={currentSong.title} 

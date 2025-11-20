@@ -240,16 +240,15 @@ const App: React.FC = () => {
   const playSong = useCallback(async (song: Song) => {
     setCurrentSong(song);
     if (spotifyToken && spotifyDeviceId && song.uri) {
-        try {
-            const success = await playSpotifyTrack(spotifyToken, spotifyDeviceId, song.uri);
-            if (success) {
-                setIsPlaying(true);
-                setSpotifyError(null);
-            } else {
-                console.warn("Playback failed to start");
-            }
-        } catch (e) {
-            console.error("Playback failed:", e);
+        // Optimistically update UI state
+        setIsPlaying(true); 
+        
+        const success = await playSpotifyTrack(spotifyToken, spotifyDeviceId, song.uri);
+        if (!success) {
+            console.warn("Playback failed to start");
+            // If failure was genuine, maybe revert state or show toast, but usually listeners handle it
+        } else {
+            setSpotifyError(null);
         }
     } else {
         // Fallback or Local Audio
@@ -512,17 +511,17 @@ const App: React.FC = () => {
                     </span>
                 </div>
                 {/* Compact Grid */}
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
                     {(spotifyToken && topTracks.length > 0 ? topTracks : SAMPLE_SONGS).slice(0, 20).map((song, idx) => (
-                        <div key={idx} className="bg-[#181818]/40 hover:bg-[#181818]/80 border border-white/5 p-2.5 rounded-lg transition-all cursor-pointer group hover:-translate-y-1 duration-300">
-                            <div className="relative mb-2.5 w-full aspect-square rounded-md overflow-hidden shadow-lg">
+                        <div key={idx} className="bg-[#181818]/40 hover:bg-[#181818]/80 border border-white/5 p-2 rounded-lg transition-all cursor-pointer group hover:-translate-y-1 duration-300">
+                            <div className="relative mb-2 w-full aspect-square rounded-md overflow-hidden shadow-lg">
                                 <img src={song.coverUrl} alt={song.title} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                                <div className="absolute bottom-1.5 right-1.5 bg-cyan-500 rounded-full w-7 h-7 flex items-center justify-center shadow-lg shadow-cyan-500/40 opacity-0 group-hover:opacity-100 hover:scale-110 transition-all duration-300 translate-y-2 group-hover:translate-y-0" onClick={() => playSong(song)}>
-                                    <Play className="w-3.5 h-3.5 text-white fill-white ml-0.5" />
+                                <div className="absolute bottom-1.5 right-1.5 bg-cyan-500 rounded-full w-6 h-6 flex items-center justify-center shadow-lg shadow-cyan-500/40 opacity-0 group-hover:opacity-100 hover:scale-110 transition-all duration-300 translate-y-2 group-hover:translate-y-0" onClick={() => playSong(song)}>
+                                    <Play className="w-3 h-3 text-white fill-white ml-0.5" />
                                 </div>
                             </div>
-                            <h3 className="font-bold text-white truncate mb-0.5 text-[11px]">{song.title}</h3>
+                            <h3 className="font-bold text-white truncate mb-0.5 text-[10px] leading-tight">{song.title}</h3>
                             <p className="text-[9px] text-white/50 line-clamp-1 font-medium">{song.artist}</p>
                         </div>
                     ))}
