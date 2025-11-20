@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const [isSpotifyReady, setIsSpotifyReady] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [spotifyProgress, setSpotifyProgress] = useState(0);
+  const [spotifyError, setSpotifyError] = useState<string | null>(null);
   
   // Settings State
   const [clientIdInput, setClientIdInput] = useState('');
@@ -133,8 +134,18 @@ const App: React.FC = () => {
             });
 
             player.addListener('authentication_error', ({ message }: any) => {
-                console.error(message);
+                console.error("Auth Error:", message);
+                setSpotifyError("Authentication failed. Please login again.");
                 setSpotifyToken(null);
+            });
+
+            player.addListener('account_error', ({ message }: any) => {
+                console.error("Account Error:", message);
+                setSpotifyError("Spotify Premium is required for web playback.");
+            });
+
+            player.addListener('playback_error', ({ message }: any) => {
+                 console.error("Playback Error:", message);
             });
 
             player.addListener('player_state_changed', (state: any) => {
@@ -230,12 +241,18 @@ const App: React.FC = () => {
     setCurrentSong(song);
     if (spotifyToken && spotifyDeviceId && song.uri) {
         try {
-            await playSpotifyTrack(spotifyToken, spotifyDeviceId, song.uri);
-            setIsPlaying(true);
+            const success = await playSpotifyTrack(spotifyToken, spotifyDeviceId, song.uri);
+            if (success) {
+                setIsPlaying(true);
+                setSpotifyError(null);
+            } else {
+                console.warn("Playback failed to start");
+            }
         } catch (e) {
             console.error("Playback failed:", e);
         }
     } else {
+        // Fallback or Local Audio
         setIsPlaying(true);
     }
   }, [spotifyToken, spotifyDeviceId]);
@@ -243,7 +260,7 @@ const App: React.FC = () => {
   const togglePlayPause = async () => {
       if (spotifyToken && isSpotifyReady) {
           await togglePlay(spotifyToken, isPlaying);
-          setIsPlaying(!isPlaying);
+          // State will update via player listener
       } else {
           setIsPlaying(!isPlaying);
       }
@@ -455,6 +472,16 @@ const App: React.FC = () => {
                     </button>
                 </div>
             )}
+            
+            {spotifyError && (
+                 <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl mb-6 flex items-center justify-between animate-in slide-in-from-top-2">
+                    <div className="flex items-center gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-400" />
+                        <span className="text-red-200 text-sm font-medium">{spotifyError}</span>
+                    </div>
+                    <button onClick={() => setSpotifyError(null)} className="text-white/40 hover:text-white"><X className="w-4 h-4"/></button>
+                </div>
+            )}
 
             {/* Recent Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
@@ -484,7 +511,7 @@ const App: React.FC = () => {
                         View All <ChevronRight className="w-3 h-3" />
                     </span>
                 </div>
-                {/* Updated Grid: More columns (compact size), smaller padding, slightly smaller text */}
+                {/* Compact Grid */}
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
                     {(spotifyToken && topTracks.length > 0 ? topTracks : SAMPLE_SONGS).slice(0, 20).map((song, idx) => (
                         <div key={idx} className="bg-[#181818]/40 hover:bg-[#181818]/80 border border-white/5 p-2.5 rounded-lg transition-all cursor-pointer group hover:-translate-y-1 duration-300">

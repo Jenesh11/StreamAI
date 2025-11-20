@@ -171,7 +171,7 @@ const Player: React.FC<PlayerProps> = ({
 
   if (!currentSong) {
       return (
-        <div className="fixed bottom-6 md:left-[19rem] left-6 right-6 h-[80px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl flex items-center justify-center z-50 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 transition-all">
+        <div className="fixed bottom-6 md:left-72 left-6 right-6 h-[80px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl flex items-center justify-center z-50 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 transition-all">
            <div className="flex items-center gap-3 text-white/50">
                <Music2 className="w-5 h-5 animate-bounce" />
                <span className="text-sm font-medium">Select a track to start listening</span>
@@ -181,7 +181,7 @@ const Player: React.FC<PlayerProps> = ({
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-[19rem] md:right-6 h-[88px] bg-[#0a0a0a]/90 backdrop-blur-2xl border-t md:border border-white/10 md:rounded-[2rem] px-4 md:px-6 flex items-center justify-between z-50 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] transition-all duration-500">
+    <div className="fixed bottom-0 left-0 right-0 md:bottom-6 md:left-72 md:right-6 h-[88px] bg-[#0a0a0a]/90 backdrop-blur-2xl border-t md:border border-white/10 md:rounded-[2rem] px-4 md:px-6 flex items-center justify-between z-50 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] transition-all duration-500">
       
       {/* Left: Song Info */}
       <div className="flex items-center gap-4 w-[30%] min-w-[140px]">
