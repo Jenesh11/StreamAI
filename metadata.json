@@ -1,0 +1,5 @@
+{
+  "name": "StreamAI - Ethereal Player",
+  "description": "A futuristic, glassmorphic web player integrating Spotify SDK and Gemini AI.",
+  "requestFramePermissions": []
+}
