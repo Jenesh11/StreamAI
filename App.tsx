@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, ChevronLeft, ChevronRight, User, Bell, Settings, Sparkles, Play, Zap, LogIn, X, Loader2, LayoutGrid, List, AlertCircle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Player from './components/Player';
@@ -46,6 +46,9 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [spotifyProgress, setSpotifyProgress] = useState(0);
   const [spotifyError, setSpotifyError] = useState<string | null>(null);
+  
+  // Reference to the raw Spotify Player object for element activation
+  const playerRef = useRef<any>(null);
   
   // Settings State
   const [clientIdInput, setClientIdInput] = useState('');
@@ -122,6 +125,9 @@ const App: React.FC = () => {
                 volume: 0.5
             });
 
+            // Store player instance ref for direct activation later
+            playerRef.current = player;
+
             player.addListener('ready', ({ device_id }: any) => {
                 console.log("Spotify Device Ready:", device_id);
                 setSpotifyDeviceId(device_id);
@@ -196,6 +202,10 @@ const App: React.FC = () => {
       setSpotifyDeviceId(null);
       setSpotifyPlaylists([]);
       setTopTracks([]);
+      if (playerRef.current) {
+          playerRef.current.disconnect();
+          playerRef.current = null;
+      }
   };
 
   const handleSaveSettings = () => {
@@ -239,6 +249,17 @@ const App: React.FC = () => {
 
   const playSong = useCallback(async (song: Song) => {
     setCurrentSong(song);
+    
+    // CRITICAL: Explicitly enable the Spotify element on user interaction (Click)
+    // This allows the browser to grant the 'autoplay' permission to the iframe/SDK
+    if (playerRef.current) {
+        try {
+            await playerRef.current.activateElement();
+        } catch (e) {
+            console.warn("Failed to activate Spotify element:", e);
+        }
+    }
+
     if (spotifyToken && spotifyDeviceId && song.uri) {
         // Optimistically update UI state
         setIsPlaying(true); 
@@ -246,7 +267,8 @@ const App: React.FC = () => {
         const success = await playSpotifyTrack(spotifyToken, spotifyDeviceId, song.uri);
         if (!success) {
             console.warn("Playback failed to start");
-            // If failure was genuine, maybe revert state or show toast, but usually listeners handle it
+            // If it failed, the player_state_changed event won't fire, so UI might get out of sync.
+            // We could set isPlaying(false) here, but sometimes the SDK is just slow.
         } else {
             setSpotifyError(null);
         }
@@ -257,6 +279,11 @@ const App: React.FC = () => {
   }, [spotifyToken, spotifyDeviceId]);
 
   const togglePlayPause = async () => {
+      // Also activate here in case user hit spacebar or play button first
+      if (playerRef.current) {
+         playerRef.current.activateElement().catch(() => {});
+      }
+
       if (spotifyToken && isSpotifyReady) {
           await togglePlay(spotifyToken, isPlaying);
           // State will update via player listener

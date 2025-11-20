@@ -134,21 +134,8 @@ export const getPlaylistTracks = async (token: string, playlistId: string): Prom
 
 export const playSpotifyTrack = async (token: string, deviceId: string, uri: string): Promise<boolean> => {
     try {
-        console.log(`SpotifyService: Preparing to play ${uri} on device ${deviceId}`);
-        
-        // CRITICAL: Always transfer playback to the target device first.
-        // This wakes up the Web Playback SDK if it has gone dormant or lost focus.
-        // We do NOT use play:true here, as we want to send a specific URI in the next step.
-        await fetchSpotify(token, "me/player", {
-            method: "PUT",
-            body: JSON.stringify({ device_ids: [deviceId], play: false }),
-        });
-
-        // Small delay to allow the Spotify backend to register the device switch.
-        // This significantly reduces "Player command failed: No active device found" errors.
-        await new Promise(resolve => setTimeout(resolve, 400));
-
-        // Now send the Play command with the specific track URI
+        // ATTEMPT 1: Direct Play
+        // Try to play directly on the device. This is fastest if the device is active.
         let res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
             method: "PUT",
             body: JSON.stringify({ uris: [uri] }),
@@ -158,10 +145,19 @@ export const playSpotifyTrack = async (token: string, deviceId: string, uri: str
             return true;
         }
 
-        // If it failed (e.g., network glitch or race condition), try one more time after a longer delay
-        console.warn("Initial play attempt failed. Retrying...");
-        await new Promise(resolve => setTimeout(resolve, 600));
+        // If Direct Play fails (likely 404 Not Found due to inactivity), we fall back to Transfer + Play.
+        console.warn("Direct play failed (Device sleeping?). Attempting wakeup transfer...");
 
+        // ATTEMPT 2: Wake Up (Transfer)
+        await fetchSpotify(token, "me/player", {
+            method: "PUT",
+            body: JSON.stringify({ device_ids: [deviceId], play: false }),
+        });
+
+        // Wait for the SDK to process the transfer and emit "ready" internally
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // ATTEMPT 3: Retry Play
         res = await fetchSpotify(token, `me/player/play?device_id=${deviceId}`, {
             method: "PUT",
             body: JSON.stringify({ uris: [uri] }),
